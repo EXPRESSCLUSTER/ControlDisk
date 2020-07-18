@@ -29,6 +29,7 @@
     <ResourceCompile Include="ControlDisk.rc" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="doc\HowToUse_en.md" />
     <None Include="README.md" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
