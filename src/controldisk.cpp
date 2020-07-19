@@ -39,9 +39,9 @@ main(
 	memset(deviceid, '\0', sizeof(deviceid));
 
 	/* check parameters */
-	if (argc <= 3)
+	if (argc == 3)
 	{
-		printf("ERROR: Invalid parameter.\n");
+		printf("%5d: Invalid parameter.\n", __LINE__);
 		PrintHelp();
 		return 1;
 	}
@@ -57,7 +57,7 @@ main(
 		}
 		else
 		{
-			printf("ERROR: 2nd argument is invalid.\n");
+			printf("%5d: 2nd argument is invalid.\n", __LINE__);
 			PrintHelp();
 			return DISK_ERROR_PARAMETER;
 		}
@@ -70,14 +70,14 @@ main(
 		}
 		else
 		{
-			printf("ERROR: 2nd argument is invalid.\n");
+			printf("%5d: 2nd argument is invalid.\n", __LINE__);
 			PrintHelp();
 			return DISK_ERROR_PARAMETER;
 		}
 	}
 	else
 	{
-		printf("ERROR: 1st argument is invalid.\n");
+		printf("%5d: 1st argument is invalid.\n", __LINE__);
 		PrintHelp();
 		return DISK_ERROR_PARAMETER;
 	}
@@ -87,29 +87,33 @@ main(
 
 	/* get system drive */
 	if (GetSystemDirectory(szSystemDrive, MAX_PATH + 1) == 0) {
-		printf("GetSystemDirectory() failed.\n");
+		printf("%5d: GetSystemDirectory() failed (%#x).\n", __LINE__, GetLastError());
 		return DISK_ERROR_QUERY;
 	}
 	szSystemDrive[2] = '\0';
 
 	/* get computer name */
 	bRet = GetComputerNameEx(ComputerNameDnsHostname, hostname, &hostnamelen);
-	/* FIXME */
+	if (!bRet)
+	{
+		printf("%5d: GetComputerNameEx() failed (%#x).\n", __LINE__, GetLastError());
+		return DISK_ERROR_NAME;
+	}
 
 	/* get HBA list */
 	dwRet = QueryHbaList(NULL, &size);
 	if (dwRet != DISK_ERROR_SUCCESS) {
-		printf("QueryHbaList() failed (ret: %d).", dwRet);
+		printf("%5d: QueryHbaList() failed (%d).", __LINE__, dwRet);
 		return DISK_ERROR_QUERY;
 	}
 	lpHba = (LP_HBA_LIST)GlobalAlloc(GPTR, size);
 	if (lpHba == NULL) {
-		printf("GlobalAlloc() failed (ret: %d).", GetLastError());
+		printf("%5d: GlobalAlloc() failed (%#x).", __LINE__, GetLastError());
 		return DISK_ERROR_ALLOCATE;
 	}
 	dwRet = QueryHbaList(lpHba, &size);
 	if (dwRet != DISK_ERROR_SUCCESS) {
-		printf("QueryHbaList() failed (ret: %d).", dwRet);
+		printf("%5d: QueryHbaList() failed (%d).", __LINE__, dwRet);
 		GlobalFree(lpHba);
 		lpHba = NULL;
 		return DISK_ERROR_QUERY;
@@ -117,16 +121,20 @@ main(
 
 	/* get volume list */
 	dwRet = QueryVolumeList(NULL, &size);
-	/* FIXME: error handling */
+	if (dwRet != DISK_ERROR_SUCCESS) {
+		printf("%5d: QueryVolumeList() failed (ret: %d).", __LINE__, dwRet);
+		GlobalFree(lpHba);
+		return DISK_ERROR_QUERY;
+	}
 	lpVol = (LP_VOLUME_LIST)GlobalAlloc(GPTR, size);
 	if (lpVol == NULL) {
-		printf("GlobalAlloc() failed (ret: %d).", GetLastError());
+		printf("%5d, GlobalAlloc() failed (%#x).", __LINE__, GetLastError());
 		GlobalFree(lpHba);
 		return DISK_ERROR_ALLOCATE;
 	}
 	dwRet = QueryVolumeList(lpVol, &size);
 	if (dwRet != DISK_ERROR_SUCCESS) {
-		printf("QueryVolumeList() failed (ret: %d).", dwRet);
+		printf("%5d: QueryVolumeList() failed (ret: %d).", __LINE__, dwRet);
 		GlobalFree(lpVol);
 		GlobalFree(lpHba);
 		return DISK_ERROR_QUERY;
@@ -158,7 +166,7 @@ main(
 		printf("%s\n", lpHba->hbalist[i].instanceid);
 	}
 
-	/*  */
+	/* get disk information and set filter */
 	if (!strcmp(argv[1], "get"))
 	{
 		if (!strcmp(argv[2], "hba"))
@@ -179,7 +187,11 @@ main(
 					strcpy(hbaname, lpHba->hbalist[i].hbaname);
 					sprintf(path, ".\\%s_hba.csv", hostname);
 					fp = fopen(path, "w+");
-					/* FIXME */
+					if (fp == NULL)
+					{
+						printf("%5d: fopen() failed (%d).\n", __LINE__, errno);
+						return DISK_ERROR_FILE;
+					}
 					fprintf(fp, "portnumber,deviceid,instanceid\n");
 					fprintf(fp, "%d,", lpHba->hbalist[i].portnumber);
 					fprintf(fp, "%s,", lpHba->hbalist[i].deviceid);
@@ -194,7 +206,11 @@ main(
 				{
 					sprintf(path, ".\\%s_hba.csv", hostname);
 					fp = fopen(path, "w+");
-					/* FIXME */
+					if (fp == NULL)
+					{
+						printf("%5d: fopen() failed (%d).\n", __LINE__, errno);
+						return DISK_ERROR_FILE;
+					}
 					fprintf(fp, "%d,", lpHba->hbalist[i].portnumber);
 					fprintf(fp, "%s,", lpHba->hbalist[i].deviceid);
 					fprintf(fp, "%s\n", lpHba->hbalist[i].instanceid);
@@ -210,7 +226,11 @@ main(
 				{
 					sprintf(path, ".\\%s_guid.csv", hostname);
 					fp = fopen(path, "w+");
-					/* FIXME */
+					if (fp == NULL)
+					{
+						printf("%5d: fopen() failed (%d).\n", __LINE__, errno);
+						return DISK_ERROR_FILE;
+					}
 					fprintf(fp, "volumeguid,drive\n");
 					fprintf(fp, "%s,%s\n", lpVol->volumelist[i].volumeguid, drive);
 					fclose(fp);
@@ -233,20 +253,23 @@ main(
 			}
 			lRet = RegOpenDriverKey(&hKeyHba, &hKeyVol);
 			if (lRet != ERROR_SUCCESS) {
-				return 1;
+				printf("%5d: RegOpenDriverKey() failed.\n", __LINE__);
+				return DISK_ERROR_REGISTRY;
 			}
 			dwPort = (DWORD)nPort;
 			sprintf(cPort, "%d", nPort);
 			lRet = RegSetValueEx(hKeyHba, cPort, 0, REG_DWORD, (const BYTE*)&dwPort, sizeof(dwPort));
 			if (lRet != ERROR_SUCCESS) 
 			{
-				/* FIXME */
-				return 1;
+				printf("%5d: RegSetValueEx() failed (%d).\n", __LINE__, lRet);
+				return DISK_ERROR_REGISTRY;
 			}
 
 		}
 	}
 	
+	/* FIXME - free */
+
 	return DISK_ERROR_SUCCESS;
 }
 
@@ -276,21 +299,19 @@ QueryHbaList
 	HBA_INFO HbaInfo;
 	SECURITY_ATTRIBUTES sa;
 
-	// HBA数の取得
+	/* get the number of HBA */
 	nHbaNum = 0;
 	for (nCnt = 0; nCnt < MAX_PORT_NUM; nCnt++)
 	{
-		// ハンドルを初期化
 		hScsi[nCnt] = INVALID_HANDLE_VALUE;
 
-		// SCSI名の取得
 		sprintf(ScsiName, "\\\\.\\Scsi%d:", nCnt);
 
 		sa.nLength = sizeof(SECURITY_ATTRIBUTES);
 		sa.lpSecurityDescriptor = NULL;
 		sa.bInheritHandle = TRUE;
 
-		// デバイスをオープン
+		/* open a device */
 		hScsi[nCnt] = CreateFile(
 			ScsiName,
 			GENERIC_READ,
@@ -300,40 +321,29 @@ QueryHbaList
 			FILE_ATTRIBUTE_NORMAL,
 			NULL
 		);
-
-		//## オープンに成功したらデバイスが ##
-		//## 存在すると考える               ##
 		if (hScsi[nCnt] != INVALID_HANDLE_VALUE)
 		{
 			nHbaNum++;
 		}
-		else
-		{
-		}
 	}
 
-	// サイズの取得
+	/* get the size of HBA_LIST */
 	nSize = sizeof(HBA_LIST_ENTRY) * nHbaNum + sizeof(HBA_LIST);
 
-	// NULLチェック
+	/* retrun the size */
 	if (buffer == (HBA_LIST*)NULL)
-	{   // サイズを格納するのみ
+	{
 		goto fin;
 	}
-
 	if (*size < nSize)
-	{   // サイズを格納するのみ
+	{
 		dwReturn = DISK_ERROR_BUFFER;
-
 		goto fin;
 	}
 
-	// HBAリスト数を格納
+	/* initialize to control disk filter */
 	buffer->hbalistnum = nHbaNum;
-
-	// LISCAL_CTRLをオープン
 	hLiscalCtrl = CreateFile(
-//		LISCAL_CTRL_DOSDEVICE_NAME,
 		"\\\\.\\LISCAL_CTRL",
 		GENERIC_READ | GENERIC_WRITE,
 		FILE_SHARE_READ | FILE_SHARE_WRITE,
@@ -343,11 +353,8 @@ QueryHbaList
 		NULL
 	);
 	if (hLiscalCtrl == INVALID_HANDLE_VALUE)
-	{   //## 失敗しても処理は継続する ##
-//		printf("LISCAL_CTRL",);
-	}
-	else
 	{
+		/* continue even if CreateFile failed */
 	}
 
 	nHbaNum = 0;
@@ -358,12 +365,10 @@ QueryHbaList
 			continue;
 		}
 
-		// 変数初期化
 		memset(HbaName, '\0', HBANAME_LEN);
 		memset(&HbaInfo, '\0', sizeof(HBA_INFO));
 
-		// HBA名を取得
-		//## 失敗しても処理は継続する ##
+		/* get HBA name */
 		dwRet = GetHbaName(nCnt, HbaName);
 		if (dwRet == 0)
 		{
@@ -374,10 +379,9 @@ QueryHbaList
 			flag = 0;
 		}
 
-		// パラメータ設定
 		HbaInfo.port = nCnt;
 
-		// デバイス情報を取得
+		/* get device information */
 		if (hLiscalCtrl != INVALID_HANDLE_VALUE)
 		{
 			nRet = DeviceIoControl(
@@ -392,18 +396,15 @@ QueryHbaList
 			);
 			if (!nRet)
 			{
-				// デバイス情報の取得に失敗
-				//## 失敗しても処理は継続する ##
+				/* continue */
 			}
 
 			if (HbaInfo.error != 0)
 			{
-				// デバイス情報の取得に失敗
-				//## 失敗しても処理は継続する ##
+				/* continue */
 			}
 		}
 
-		// HBA情報を格納
 		buffer->hbalist[nHbaNum].portnumber = HbaInfo.port;
 		strncpy(buffer->hbalist[nHbaNum].hbaname, HbaName, HBANAME_LEN);
 		strncpy(buffer->hbalist[nHbaNum].deviceid, HbaInfo.device_id, HBADEVICEID_LEN);
@@ -413,10 +414,8 @@ QueryHbaList
 	}
 
 fin:
-	// 必要なバッファサイズを格納
 	*size = sizeof(HBA_LIST_ENTRY) * nHbaNum + sizeof(HBA_LIST);
 
-	// ハンドルをクローズ
 	for (nCnt = 0; nCnt < MAX_PORT_NUM; nCnt++)
 	{
 		if (hScsi[nCnt] != INVALID_HANDLE_VALUE)
@@ -447,7 +446,6 @@ GetHbaName(
 	DWORD   nSize = 0;
 	char  RegPath[PATH_LEN];
 	BYTE  DriverName[HBANAME_LEN];
-//	TCHAR  DriverName[HBANAME_LEN];
 	char  Zero[HBANAME_LEN];
 	char* TempName = NULL;
 	HKEY  hRestoreKey = NULL;
@@ -457,73 +455,67 @@ GetHbaName(
 	nRet = RegOpenKeyEx(HKEY_LOCAL_MACHINE, RegPath, 0, KEY_ALL_ACCESS, &hRestoreKey);
 	if (nRet != ERROR_SUCCESS)
 	{
-		/* TODO: error handling */
+		/* ignore the following error message */
+#if 0
+		printf("%d: RegOpenKeyEx() failed (%d).\n", __LINE__, nRet);
+#endif
+		dwReturn = DISK_ERROR_REGISTRY;
+		goto exit;
 	}
 	nSize = HBANAME_LEN;
 	nRet = RegQueryValueEx(hRestoreKey, "Driver", NULL, &dwType, DriverName, &nSize);
 	if (nRet != ERROR_SUCCESS)
 	{
-		dwReturn = DISK_ERROR_OTHER;
+		printf("%5d: RegQueryValueEx() failed (%d).\n", __LINE__, nRet);
+		dwReturn = DISK_ERROR_REGISTRY;
 		goto exit;
 	}
-
-	// レジストリをクローズ
 	if (hRestoreKey != NULL)
 	{
 		RegCloseKey(hRestoreKey);
 		hRestoreKey = NULL;
 	}
 
-	// レジストリパスの作成
 	sprintf(RegPath, "SYSTEM\\CurrentControlSet\\Services\\%s\\Enum", DriverName);
-
-	// レジストリのオープン
 	nRet = RegOpenKeyEx(HKEY_LOCAL_MACHINE, RegPath, 0, KEY_ALL_ACCESS, &hRestoreKey);
 	if (nRet != ERROR_SUCCESS)
 	{
-		dwReturn = DISK_ERROR_OTHER;
+		printf("%d: RegOpenKeyEx() failed (%d).\n", __LINE__, nRet);
+		dwReturn = DISK_ERROR_REGISTRY;
 		goto exit;
 	}
-
-	// デバイス名取得用のパスを取得
 	nSize = HBANAME_LEN;
 	nRet = RegQueryValueEx(hRestoreKey, "0", NULL, &dwType, (LPBYTE)Zero, &nSize);
 	if (nRet != ERROR_SUCCESS)
 	{
-		dwReturn = DISK_ERROR_OTHER;
+		printf("%5d: RegQueryValueEx() failed (%d).\n", __LINE__, nRet);
+		dwReturn = DISK_ERROR_REGISTRY;
 		goto exit;
 	}
 
-	// レジストリをクローズ
 	if (hRestoreKey != NULL)
 	{
 		RegCloseKey(hRestoreKey);
 		hRestoreKey = NULL;
 	}
 
-	// レジストリパスの作成
 	sprintf(RegPath, "SYSTEM\\CurrentControlSet\\Enum\\%s", Zero);
-
-	// レジストリをオープン
-	//## "KEY_ALL_ACCESS"でオープンすると ##
-	//## 失敗するため"KEY_QUERY_VALUE"    ##
 	nRet = RegOpenKeyEx(HKEY_LOCAL_MACHINE, RegPath, 0, KEY_QUERY_VALUE, &hRestoreKey);
 	if (nRet != ERROR_SUCCESS)
 	{
-		dwReturn = DISK_ERROR_OTHER;
+		printf("%d: RegOpenKeyEx() failed (%d).\n", __LINE__, nRet);
+		dwReturn = DISK_ERROR_REGISTRY;
 		goto exit;
 	}
-
-	// HBA名を取得
 	nSize = HBANAME_LEN;
 	nRet = RegQueryValueEx(hRestoreKey, "DeviceDesc", NULL, &dwType, (LPBYTE)HbaName, &nSize);
 	if (nRet != ERROR_SUCCESS)
 	{
-		dwReturn = DISK_ERROR_OTHER;
+		printf("%5d: RegQueryValueEx() failed (%d).\n", __LINE__, nRet);
+		dwReturn = DISK_ERROR_REGISTRY;
 		goto exit;
 	}
 
-	//add 2008/02/25
 	if (HbaName[0] == '@') {
 		lpDesc = strchr(HbaName, ';');
 		lpDesc++;
@@ -538,13 +530,11 @@ GetHbaName(
 	}
 
 exit:
-	// メモリを開放
 	if (TempName != NULL)
 	{
 		GlobalFree(TempName);
 		TempName = NULL;
 	}
-	// レジストリをクローズ
 	if (hRestoreKey != NULL)
 	{
 		RegCloseKey(hRestoreKey);
@@ -574,7 +564,6 @@ QueryVolumeList(
 	int nVolNum = 0;
 	VOLUME_LIST_ENTRY	TempBuff;
 
-
 	hVolume = FindFirstVolume(VolumeName, PATH_LEN);
 	if (hVolume == INVALID_HANDLE_VALUE)
 	{
@@ -583,25 +572,20 @@ QueryVolumeList(
 		goto fin;
 	}
 
-	// ボリュームの数を取得
 	nVolNum = 0;
 	while (TRUE)
 	{
-		// バッファの初期化
 		memset(&TempBuff, '\0', sizeof(VOLUME_LIST_ENTRY));
 
-		// ボリュームGUIDの取得
 		pt1 = strchr(VolumeName, '{');
 		pt2 = strchr(VolumeName, '}');
 		memset(TempBuff.volumeguid, '\0', PATH_LEN);
 		strncpy(TempBuff.volumeguid, pt1 + 1, pt2 - pt1 - 1);
 
-		// ボリューム情報の取得
-		//## disknumber,partitionnumber,partitionsize_hi,partitionsize_loを取得 ##
+		/* get disknumber, partitionnumber, partitionsize_hi and partitionsize_lo */
 		nRet = GetVolumeInfo(&(TempBuff.volumeinfo), TempBuff.volumeguid);
 		if (nRet != DISK_ERROR_SUCCESS)
 		{
-			//## 失敗しても処理は継続する ##
 			nRet = FindNextVolume(hVolume, VolumeName, PATH_LEN);
 			if (nRet == 0)
 			{
@@ -610,39 +594,31 @@ QueryVolumeList(
 			continue;
 		}
 
-		// ディスク情報の取得
-		//## portnumber,pathid,targetid,lunを取得 ##
+		/* get portnumber, pathid, targetid and lun */
 		nRet = GetDiskInfo(&(TempBuff.volumeinfo));
-
-		// ディスク名の取得
-		//## disknameを取得 ##
-		//## GetDiskInfo()でエラーが発生したらスルー ##
 		if (nRet == DISK_ERROR_SUCCESS)
 		{
 			nRet = GetDiskName(&(TempBuff.volumeinfo));
 		}
 
-		// ボリュームマウントポイントの取得
-		//## 失敗しても処理を継続 ##
+		/* get mountpoint */
 		nRet = GetVolumeMountPoint(TempBuff.volumeguid, TempBuff.volumemountpoint);
+		/* ignore return value because some volume is not mounted */
 
 		bSts = IsRemovableVolume(TempBuff.volumemountpoint);
 		if (bSts == TRUE) {
 			/* RemovalMedia (do nothing) */
 		}
 		else {
-			// サイズを確認し、データを格納
 			nSize = sizeof(VOLUME_LIST_ENTRY) * (nVolNum + 1) + sizeof(VOLUME_LIST);
 			if (buffer != (VOLUME_LIST*)NULL && *size >= nSize)
 			{
 				buffer->volumelistnum = nVolNum + 1;
 				memcpy(&(buffer->volumelist[nVolNum]), &TempBuff, sizeof(VOLUME_LIST_ENTRY));
 			}
-			// ボリューム数を＋＋
 			nVolNum++;
 		}
 
-		// 次のボリュームを検索
 		nRet = FindNextVolume(hVolume, VolumeName, PATH_LEN);
 		if (nRet == 0)
 		{
@@ -650,22 +626,14 @@ QueryVolumeList(
 		}
 	}
 
-	// サイズの取得
 	nSize = sizeof(VOLUME_LIST_ENTRY) * nVolNum + sizeof(VOLUME_LIST);
-
-	// NULLチェック
 	if (buffer == (VOLUME_LIST*)NULL)
-	{   // サイズを格納するのみ
-//		printf("buffer is NULL. neccesary size : %d\n", nSize);
-
+	{   
 		goto fin;
 	}
-
 	if (*size < nSize)
-	{   // サイズを格納するのみ
+	{
 		dwReturn = DISK_ERROR_BUFFER;
-//		printf("size is not enough. size : %d, neccesary size : %d\n", *size, nSize);
-
 		goto fin;
 	}
 
@@ -707,10 +675,7 @@ GetVolumeInfo(
 	memset(&length, '\0', sizeof(GET_LENGTH_INFORMATION));
 	memset(&extents, '\0', sizeof(VOLUME_DISK_EXTENTS));
 
-	// ボリューム名の取得
 	sprintf(VolumeName, "\\\\?\\Volume{%s}", VolumeGuid);
-
-	// ボリュームをオープン
 	sa.nLength = sizeof(SECURITY_ATTRIBUTES);
 	sa.lpSecurityDescriptor = NULL;
 	sa.bInheritHandle = TRUE;
@@ -729,7 +694,6 @@ GetVolumeInfo(
 		goto fin;
 	}
 
-	// ディスク情報を取得
 	bRet = DeviceIoControl(hVolume,
 		IOCTL_VOLUME_GET_VOLUME_DISK_EXTENTS,
 		NULL,
@@ -748,8 +712,6 @@ GetVolumeInfo(
 	{
 		/* TODO: log */
 	}
-
-	// ボリューム情報を取得
 	bRet = DeviceIoControl(hVolume,
 		IOCTL_DISK_GET_PARTITION_INFO_EX,
 		NULL,
@@ -769,7 +731,6 @@ GetVolumeInfo(
 		/* TODO: log */
 	}
 
-	// ディスクのLENGTH情報を取得
 	bRet = DeviceIoControl(hVolume,
 		IOCTL_DISK_GET_LENGTH_INFO,
 		NULL,
@@ -780,10 +741,7 @@ GetVolumeInfo(
 		NULL
 	);
 	if (!bRet)
-	{   //## 失敗してもエラーとしない            ##
-		//## RAWパーティションで失敗する場合あり ##
-
-		// LISCAL_CTRLをオープン
+	{
 		hLiscalCtrl = CreateFile(
 			"\\\\.\\LISCAL_CTRL",
 			GENERIC_READ | GENERIC_WRITE,
@@ -794,15 +752,14 @@ GetVolumeInfo(
 			NULL
 		);
 		if (hLiscalCtrl == INVALID_HANDLE_VALUE)
-		{   //## 失敗しても処理は継続する ##
+		{
+			/* do nothing */
 		}
 		else
 		{
-			// パラメータ設定
 			OnlineParam.flag = PG_PORT_IO;
 			strncpy(OnlineParam.dp_vmp, VolumeGuid, GUID_LEN);
 
-			// ボリュームを口開け
 			bStatus = DeviceIoControl(
 				hLiscalCtrl,
 				LISCAL_OPEN_DRV_PORT,
@@ -816,15 +773,14 @@ GetVolumeInfo(
 
 			if (!bStatus)
 			{
-				// 口開けに失敗
+				/* failed to open device but do nothing */
 			}
 			else if (OnlineParam.error != 0)
 			{
-				// 口開けに失敗
+				/* failed to open device but do nothing */
 			}
 			else
 			{
-				// ディスクのLENGTH情報を取得
 				bRet = DeviceIoControl(hVolume,
 					IOCTL_DISK_GET_LENGTH_INFO,
 					NULL,
@@ -849,14 +805,12 @@ GetVolumeInfo(
 		/* TODO: log */
 	}
 
-	// 取得した情報を格納
 	buffer->disknumber = extents.Extents[0].DiskNumber;
 	buffer->partitionnumber = partitioninfo.PartitionNumber;
 	buffer->partitionsize_hi = length.Length.HighPart;
 	buffer->partitionsize_lo = length.Length.LowPart;
 
 fin:
-	// ハンドルをクローズ
 	if (hVolume != INVALID_HANDLE_VALUE)
 	{
 		CloseHandle(hVolume);
@@ -880,12 +834,7 @@ GetDiskInfo(
 	SCSI_ADDRESS        address;
 	SECURITY_ATTRIBUTES sa;
 
-	
-
-	// デバイス名の取得
 	sprintf(DeviceName, "\\\\.\\PHYSICALDRIVE%d", buffer->disknumber);
-
-	// デバイスをオープン
 	sa.nLength = sizeof(SECURITY_ATTRIBUTES);
 	sa.lpSecurityDescriptor = NULL;
 	sa.bInheritHandle = TRUE;
@@ -908,7 +857,6 @@ GetDiskInfo(
 		/* TODO: log */
 	}
 
-	// デバイス情報を取得
 	bRet = DeviceIoControl(hDevice,
 		IOCTL_SCSI_GET_ADDRESS,
 		&address,
@@ -928,14 +876,12 @@ GetDiskInfo(
 		/* TODO: log */
 	}
 
-	// デバイス情報を格納
 	buffer->portnumber = address.PortNumber;
 	buffer->pathid = address.PathId;
 	buffer->targetid = address.TargetId;
 	buffer->lun = address.Lun;
 
 fin:
-	// ハンドルをクローズ
 	if (hDevice != INVALID_HANDLE_VALUE)
 	{
 		CloseHandle(hDevice);
@@ -968,11 +914,7 @@ GetDiskName(
 	SCSI_INQUIRY_DATA* inq = NULL;
 	INQUIRYDATA* inqdata = NULL;
 
-
-	// SCSI名の取得
 	sprintf(ScsiName, "\\\\.\\Scsi%d:", buffer->portnumber);
-
-	// デバイスをオープン
 	sa.nLength = sizeof(SECURITY_ATTRIBUTES);
 	sa.lpSecurityDescriptor = NULL;
 	sa.bInheritHandle = TRUE;
@@ -995,7 +937,6 @@ GetDiskName(
 		/* TODO: log */
 	}
 
-	// SCSI情報の領域を確保
 	nSize = 1024;
 	adapterbusinfo = (SCSI_ADAPTER_BUS_INFO*)GlobalAlloc(GPTR, nSize);
 	if (adapterbusinfo == NULL)
@@ -1004,10 +945,8 @@ GetDiskName(
 		goto fin;
 	}
 
-	// SCSIの検索ループ(サイズの動的確保のため)
 	while (TRUE)
 	{
-		// SCSI情報の取得
 		bRet = DeviceIoControl(hScsi,
 			IOCTL_SCSI_GET_INQUIRY_DATA,
 			NULL,
@@ -1018,14 +957,13 @@ GetDiskName(
 			NULL
 		);
 		if (bRet)
-		{   // 成功ならループを抜ける
+		{
 			break;
 		}
 
 		dwStatus = GetLastError();
 		if (dwStatus == ERROR_INSUFFICIENT_BUFFER)
 		{
-			// 領域の再確保
 			nSize *= 2;
 			GlobalFree(adapterbusinfo);
 			adapterbusinfo = NULL;
@@ -1044,28 +982,22 @@ GetDiskName(
 		}
 	}
 
-	// BUS数でループ
 	for (nCnt1 = 0; nCnt1 < adapterbusinfo->NumberOfBuses; nCnt1++)
 	{
 		if (adapterbusinfo->BusData[nCnt1].NumberOfLogicalUnits == 0)
-		{   // 物理ユニット数が0なら次のBUSへ
+		{
 			continue;
 		}
 
-		// InquiryDataを取得
 		pt = ((char*)(adapterbusinfo)) + adapterbusinfo->BusData[nCnt1].InquiryDataOffset;
 		inq = (SCSI_INQUIRY_DATA*)pt;
 
-		// ループ
 		while (TRUE)
 		{
-			// PathID,TargetID,LUNが一致するか否か
 			if (inq->PathId == buffer->pathid && inq->TargetId == buffer->targetid && inq->Lun == buffer->lun)
 			{
-				// InquiryDataを取得
 				inqdata = (INQUIRYDATA*)inq->InquiryData;
 
-				// デバイス名の領域を確保
 				name = (char*)GlobalAlloc(GPTR, sizeof(inqdata->VendorId) + sizeof(inqdata->ProductId) + sizeof(inqdata->ProductRevisionLevel) + 1);
 				if (name == NULL)
 				{
@@ -1073,23 +1005,16 @@ GetDiskName(
 					goto fin;
 				}
 
-				// デバイス名の取得
 				memset(name, 0, sizeof(inqdata->VendorId) + sizeof(inqdata->ProductId) + sizeof(inqdata->ProductRevisionLevel) + 1);
 				memcpy(name, inqdata->VendorId, sizeof(inqdata->VendorId));
 				memcpy(&name[strlen(name)], inqdata->ProductId, sizeof(inqdata->ProductId));
 				memcpy(&name[strlen(name)], inqdata->ProductRevisionLevel, sizeof(inqdata->ProductRevisionLevel));
-
 				name[strlen(name)] = '\0';
-
 				break;
 			}
-
-			// 次のInquiryDataが存在するか否か
 			if (inq->NextInquiryDataOffset == 0) {
 				break;
 			}
-
-			// 次のInquiryDataを取得
 			pt = ((char*)(adapterbusinfo)) + inq->NextInquiryDataOffset;
 			inq = (SCSI_INQUIRY_DATA*)pt;
 		}
@@ -1100,12 +1025,10 @@ GetDiskName(
 		goto fin;
 	}
 
-	// DISK名を格納
 	strncpy(buffer->diskname, name, DISKNAME_LEN);
 
 
 fin:
-	// メモリを開放
 	if (adapterbusinfo != NULL)
 	{
 		GlobalFree(adapterbusinfo);
@@ -1121,7 +1044,6 @@ fin:
 		GlobalFree(TempName);
 		TempName = NULL;
 	}
-	// ハンドルをクローズ
 	if (hScsi != INVALID_HANDLE_VALUE)
 	{
 		CloseHandle(hScsi);
@@ -1148,13 +1070,9 @@ GetVolumeMountPoint(
 	char  Path[PATH_LEN];
 
 
-	// MountPointの初期化
 	memset(MountPoint, '\0', PATH_LEN);
 
-	// ボリューム名の取得
 	sprintf(VolumeName, "\\\\?\\Volume{%s}\\", VolumeGuid);
-
-	// ボリュームパスを取得
 	nRet = GetVolumePathNamesForVolumeName(VolumeName, Path, PATH_LEN, &dwDatalen);
 	if (nRet == 0)
 	{
@@ -1166,36 +1084,24 @@ GetVolumeMountPoint(
 		/* TODO: log */
 	}
 
-	// MountPointの取得
 	pt = (char*)& Path[0];
 	nSize = 0;
 	while (TRUE)
 	{
 		strcat(MountPoint, pt);
-
-		// '\0'の検索
 		pt = strchr(pt, '\0');
-
-		//## '\0'がないならループを抜ける       ##
-		//## または、次も'\0'ならループを抜ける ##
 		if (pt == NULL || *(++pt) == '\0')
 		{
 			break;
 		}
-		// MountPointのサイズチェック
-		//## MountPointがオーバフローするなら ##
-		//## ループを抜ける                   ##
 		if (strlen(MountPoint) + strlen(pt) + 3 >= PATH_LEN)
 		{
 			break;
 		}
-
 		strcat(MountPoint, " / ");
-
 	}
 
 fin:
-
 	return dwReturn;
 }
 
@@ -1208,7 +1114,6 @@ IsRemovableVolume(
 	BOOL    bRet = FALSE;
 	UINT    uType = 0;
 
-	/* skip removable volume */
 	uType = GetDriveType(mountpoint);
 	if (uType == DRIVE_REMOVABLE) {
 		bRet = TRUE;
@@ -1225,30 +1130,33 @@ RegOpenDriverKey(PHKEY hKeyHba, PHKEY hKeyVol)
 	LONG lRet;
 	CHAR szKey[MAX_PATH];
 
-	/* ディスクドライバのキーをオープン */
+	/* open a registry key of clpdiskfltr */
 	sprintf(szKey, "SYSTEM\\CurrentControlSet\\Services\\%s", "clpdiskfltr");
 	lRet = RegOpenKeyEx(HKEY_LOCAL_MACHINE, szKey, 0, KEY_ALL_ACCESS, &hKey);
 	if (lRet != ERROR_SUCCESS) {
+		printf("%5d: RegQueryValueEx() failed (%d).\n", __LINE__, lRet);
 		return lRet;
 	}
 
-	/* Parametersのキーを生成 */
+	/* create Parameters key */
 	lRet = RegCreateKeyEx(hKey, "Parameters", 0, NULL, REG_OPTION_NON_VOLATILE, KEY_ALL_ACCESS, NULL, &hSubKey, NULL);
 	if (lRet != ERROR_SUCCESS && lRet != ERROR_ALREADY_EXISTS) {
+		printf("%5d: RegCreateKeyEx() failed (%d).\n", __LINE__, lRet);
 		RegCloseKey(hKey);
 		return lRet;
 	}
 	RegCloseKey(hSubKey);
 
-	/* HBAListのキーを生成 */
+	/* create HBAList key */
 	lRet = RegCreateKeyEx(hKey, "HBAList", 0, NULL, REG_OPTION_NON_VOLATILE, KEY_ALL_ACCESS, NULL, &hSubKey, NULL);
 	if (lRet != ERROR_SUCCESS && lRet != ERROR_ALREADY_EXISTS) {
+		printf("%5d: RegCreateKeyEx() failed (%d).\n", __LINE__, lRet);
 		RegCloseKey(hKey);
 		return lRet;
 	}
 	RegCloseKey(hSubKey);
 
-	/* HBAPortListのキーを生成 */
+	/* create HBAPortList key */
 	lRet = RegCreateKeyEx(hKey, "HBAPortList", 0, NULL, REG_OPTION_NON_VOLATILE, KEY_ALL_ACCESS, NULL, &hSubKey, NULL);
 	if (lRet != ERROR_SUCCESS && lRet != ERROR_ALREADY_EXISTS) {
 		RegCloseKey(hKey);
@@ -1256,9 +1164,10 @@ RegOpenDriverKey(PHKEY hKeyHba, PHKEY hKeyVol)
 	}
 	*hKeyHba = hSubKey;
 
-	/* UniqueIDListのキーを生成 */
+	/* create UniqueIDList key */
 	lRet = RegCreateKeyEx(hKey, "UniqueIDList", 0, NULL, REG_OPTION_NON_VOLATILE, KEY_ALL_ACCESS, NULL, &hSubKey, NULL);
 	if (lRet != ERROR_SUCCESS && lRet != ERROR_ALREADY_EXISTS) {
+		printf("%5d: RegCreateKeyEx() failed (%d).\n", __LINE__, lRet);
 		RegCloseKey(*hKeyHba);
 		RegCloseKey(hKey);
 		return lRet;

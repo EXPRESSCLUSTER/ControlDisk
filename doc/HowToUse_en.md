@@ -19,7 +19,7 @@ R: Volume for network partiotion resolution resource of disk method (called Diks
 S: Volume for Disk Resource
 ```
 
-## Set Filtering for HBA
+## Set Filter for HBA
 1. Connect a shared disk to a server and create some volumes on the shared disk. 
 1. Assign a drive letter for the volume.
 1. Install EXPRESSCLUSTER X for Windows with silent mode but not reboot OS.
