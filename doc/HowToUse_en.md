@@ -72,7 +72,7 @@ S: Volume for Disk Resource
    volumeguid,drive
    7ea7a3d1-4e40-4050-a2e4-6751c147dee0,S:\
    ```
-1. Set volumeguid and drive 
+1. Set **volumeguid** and **drive** as below.
    - Disk Resource
      - Set **volumeguid** and **volumemountpoint** as below.
        ```xml
@@ -92,13 +92,14 @@ S: Volume for Disk Resource
        </resource>
        ```
    - Disk NP Resource
-     ```xml
-          <server name="your hostname">
-           :
-                  <device id="10100">
-                          <type>disknp</type>
-                          <info>e8219479-a1cc-438f-b7d7-f9235b14a9b4</info>
-                          <extend>R:\</extend>
-                  </device>
-          </server>
-     ```
+     - Set **info** and **extend** as below.
+       ```xml
+            <server name="your hostname">
+             :
+                    <device id="10100">
+                            <type>disknp</type>
+                            <info>e8219479-a1cc-438f-b7d7-f9235b14a9b4</info>
+                            <extend>R:\</extend>
+                    </device>
+            </server>
+       ```
