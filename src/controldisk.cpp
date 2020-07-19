@@ -39,11 +39,11 @@ main(
 	memset(deviceid, '\0', sizeof(deviceid));
 
 	/* check parameters */
-	if (argc == 3)
+	if (argc <= 3)
 	{
 		printf("%5d: Invalid parameter.\n", __LINE__);
 		PrintHelp();
-		return 1;
+		return DISK_ERROR_PARAMETER;
 	}
 	if (!strcmp(argv[1], "get"))
 	{
