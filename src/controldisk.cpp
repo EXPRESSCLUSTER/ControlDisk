@@ -4,9 +4,6 @@
 
 #include "controldisk.h"
 
-/*
- * ClpsdfltrInfo.c/GetHbaInfo()
- */
 int
 main(
 	int argc,
@@ -23,6 +20,7 @@ main(
 	LONG lRet;
 	char szSystemDrive[MAX_PATH + 1];
 	char drive[2];
+	char sysdrive[2];
 	char deviceid[256];
 	char hostname[256];
 	char hbaname[256];
@@ -91,6 +89,8 @@ main(
 		return DISK_ERROR_QUERY;
 	}
 	szSystemDrive[2] = '\0';
+	sprintf(sysdrive, "%s\\", szSystemDrive);
+	printf("System Drive: %s\n", sysdrive);
 
 	/* get computer name */
 	bRet = GetComputerNameEx(ComputerNameDnsHostname, hostname, &hostnamelen);
@@ -242,6 +242,11 @@ main(
 	{
 		if (!strcmp(argv[2], "filter"))
 		{
+			if (!strcmp(sysdrive, drive))
+			{
+				printf("%d: Does not support SAN boot configuration, yet.\n", __LINE__);
+				return DISK_ERROR_OTHER;
+			}
 			/* find the HBA has the same port number */
 			for (i = 0; i < nVol; i++)
 			{

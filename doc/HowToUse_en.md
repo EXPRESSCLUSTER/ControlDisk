@@ -1,4 +1,9 @@
 # How to Use
+## Index
+- [Sample Configuration](#sample-configuration)
+- [Note](#note)
+- [Set Filter for HBA](#set-filter-for-hba)
+- [Get HBA information and GUID](#get-hba-information-and-guid)
 
 ## Sample Configuration
 ```
@@ -18,6 +23,14 @@
 R: Volume for network partiotion resolution resource of disk method (called Diks NP Resource)
 S: Volume for Disk Resource
 ```
+
+## Note 
+- clpdiskctrl.exe does not support SAN boot configuration, yet. If you run the following command, you will get the error.
+  ```bat
+  C:\> clpdisktrl set filter C:\
+   :
+  250: Does not support SAN boot configuration, yet.
+  ```
 
 ## Set Filter for HBA
 1. Connect a shared disk to a server and create some volumes on the shared disk. 
