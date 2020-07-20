@@ -27,7 +27,7 @@ S: Volume for Disk Resource
     - https://www.manuals.nec.co.jp/contents/system/files/nec_manuals/node/504/W42_IG_EN/W_IG.html#installing-the-expresscluster-server-in-silent-mode 
 1. Run the following command.
    ```bat
-   C:\> clpctrldisk.exe set filter <drive letter (e.g. S:\)>
+   C:\> clpdiskctrl.exe set filter <drive letter (e.g. S:\)>
    ```
    - Run the following command to check if the port number is registered.
      ```bat
@@ -42,7 +42,7 @@ S: Volume for Disk Resource
 ### Get HBA Information
 1. Run the following command.
    ```bat
-   C:\> clpctrldisk.exe get hba <drive letter (e.g. S:\)>
+   C:\> clpdiskctrl.exe get hba <drive letter (e.g. S:\)>
    ```
 1. You get the following file.
    ```bat
@@ -64,7 +64,7 @@ S: Volume for Disk Resource
 ### Get GUID
 1. Run the following command.
    ```bat
-   C:\> clpctrldisk.exe get guid <drive letter (e.g. S:\)>
+   C:\> clpdiskctrl.exe get guid <drive letter (e.g. S:\)>
    ```
 1. You get the following file.
    ```bat
